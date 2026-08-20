@@ -27,6 +27,8 @@ namespace GW2ProximityChat
         private AsyncTexture2D _iconConnecting;
         private AsyncTexture2D _iconConnected;
 
+        private RangeIndicatorEntity _rangeIndicator;
+
         [ImportingConstructor]
         public GW2ProximityChatModule([Import("ModuleParameters")] ModuleParameters moduleParameters)
             : base(moduleParameters)
@@ -79,6 +81,9 @@ namespace GW2ProximityChat
             };
             _cornerIcon.Click += (s, ev) => _cornerMenu.Show(_cornerIcon);
 
+            _rangeIndicator = new RangeIndicatorEntity(_proximityService);
+            GameService.Graphics.World.AddEntity(_rangeIndicator);
+
             _settings.ToggleWindowKeyBinding.Value.Activated += OnToggleWindowActivated;
             _settings.ToggleMicEnabledKeyBinding.Value.Activated += OnToggleMicEnabledActivated;
 
@@ -105,10 +110,16 @@ namespace GW2ProximityChat
         /// going stale while the menu is closed.</summary>
         private IEnumerable<ContextMenuStripItem> BuildCornerMenuItems()
         {
+            var statusColor = _proximityService.IsConnected
+                ? Color.LimeGreen
+                : _proximityService.IsConnecting
+                    ? Color.Orange
+                    : Color.Red;
+
             var items = new List<ContextMenuStripItem>
             {
                 new ContextMenuStripItem($"Server: {_proximityService.ServerName}") { Enabled = false },
-                new ContextMenuStripItem($"Status: {_proximityService.ConnectionStatus}") { Enabled = false },
+                new StatusMenuStripItem($"Status: {_proximityService.ConnectionStatus}") { Enabled = false, IndicatorColor = statusColor },
             };
 
             var connectItem = new ContextMenuStripItem(_proximityService.IsConnected ? "Disconnect" : "Connect");
@@ -185,6 +196,8 @@ namespace GW2ProximityChat
 
                 _settings.PushToTalkKeyBinding.Value.Enabled = false;
             }
+
+            if (_rangeIndicator != null) GameService.Graphics.World.RemoveEntity(_rangeIndicator);
 
             _cornerIcon?.Dispose();
             _cornerMenu?.Dispose();

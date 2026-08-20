@@ -32,6 +32,16 @@
     <Reference Include="System.Web.Extensions" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Native P/Invoke dependency for Audio/RnnoiseProcessor.cs, see native/README.md.
+         Copied to the build output root (same place NAudio.dll etc. already land) so it's
+         bundled into the .bhm and sits beside GW2ProximityChat.dll at runtime. -->
+    <None Include="native\rnnoise.dll">
+      <Link>rnnoise.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <Target Name="ForceRestore"
           BeforeTargets="CollectPackageReferences;ResolvePackageAssets"
           Condition="!Exists('$(BaseIntermediateOutputPath)project.assets.json') AND '$(ForceRestoreRunning)' != 'true'">

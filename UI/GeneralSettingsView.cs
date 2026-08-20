@@ -48,6 +48,7 @@ namespace GW2ProximityChat
         private TextBox _portTextBox;
         private TextBox _passwordTextBox;
         private Checkbox _micEnabledCheckbox;
+        private Checkbox _noiseSuppressionCheckbox;
         private Dropdown _activationModeDropdown;
         private MicLevelMeter _micLevelMeter;
         private Dropdown _micDeviceDropdown;
@@ -127,6 +128,14 @@ namespace GW2ProximityChat
                 Parent = micCategory,
             };
             _micEnabledCheckbox.CheckedChanged += (s, e) => _proximityService.MicrophoneEnabled = _micEnabledCheckbox.Checked;
+
+            _noiseSuppressionCheckbox = new Checkbox
+            {
+                Text = "Noise Suppression (rnnoise)",
+                Checked = _proximityService.NoiseSuppressionEnabled,
+                Parent = micCategory,
+            };
+            _noiseSuppressionCheckbox.CheckedChanged += (s, e) => _proximityService.NoiseSuppressionEnabled = _noiseSuppressionCheckbox.Checked;
 
             var modeRow = CreateHRow(micCategory);
             CreateRowLabel(modeRow, "Activation Mode:");

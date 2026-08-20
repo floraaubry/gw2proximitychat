@@ -60,6 +60,12 @@ namespace GW2ProximityChat
             set => _audioService.MicrophoneEnabled = value;
         }
 
+        public bool NoiseSuppressionEnabled
+        {
+            get => _audioService.NoiseSuppressionEnabled;
+            set => _audioService.NoiseSuppressionEnabled = value;
+        }
+
         public MicActivationMode ActivationMode
         {
             get => _audioService.ActivationMode;
@@ -102,6 +108,19 @@ namespace GW2ProximityChat
         public bool IsConnected => _relayClient.IsConnected;
         public bool IsConnecting => _connecting;
         public string ConnectionStatus { get; private set; } = "Disconnected";
+
+        /// <summary>Debug-tab toggle -- draws GainCalculator's Min/MaxRange as ground-plane
+        /// rings around the player (see <see cref="RangeIndicatorEntity"/>) for visually
+        /// calibrating the proximity falloff in-game.</summary>
+        public bool ShowRangeIndicator { get; set; }
+
+        /// <summary>Debug-tab loopback test -- plays a local audio file through the same
+        /// gain/pan path real peers use, so falloff/pan can be checked by ear solo.</summary>
+        public bool IsTestFilePlaying => _audioService.IsTestFilePlaying;
+        public void PlayTestFile(string filePath) => _audioService.PlayTestFile(filePath);
+        public void StopTestFile() => _audioService.StopTestFile();
+        public void SetTestFileGain(float gain) => _audioService.SetTestFileGain(gain);
+        public void SetTestFilePan(float pan) => _audioService.SetTestFilePan(pan);
 
         public ProximityService()
         {
@@ -276,6 +295,7 @@ namespace GW2ProximityChat
                     peer.Gain = GainCalculator.DistanceToGain(peer.Distance);
                     peer.Pan = GainCalculator.ComputePan(listenerPosition, listenerForward, peer.Position);
                     _audioService.SetPeerGain(peer.PlayerId, peer.Gain);
+                    _audioService.SetPeerPan(peer.PlayerId, peer.Pan);
                 }
             }
         }

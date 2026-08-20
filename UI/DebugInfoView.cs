@@ -20,6 +20,12 @@ namespace GW2ProximityChat
         private const int PanelMargin     = 28;
         private const int CategoryPadding = 12;
         private const int ExtraHeight     = 60; // the AutoSize/content-region height math was short by this
+        private const int RowGap         = 10;
+        private const int RowLabelWidth  = 190;
+
+        // Past GainCalculator.MaxRange so the slider can show the silent tail, not just the
+        // audible range.
+        private const float TestDistanceSliderMax = 80f;
 
         private readonly ProximityService _proximityService;
         private readonly int _contentWidth;
@@ -29,8 +35,17 @@ namespace GW2ProximityChat
 
         private int _panelWidth;
         private int _innerWidth;
+        private int _rowControlWidth;
 
         private FlowPanel _peersCategory;
+
+        private TextBox _testFilePathTextBox;
+        private StandardButton _testFilePlayButton;
+        private Label _testFileStatusLabel;
+        private TrackBar _testDistanceTrackBar;
+        private Label _testDistanceValueLabel;
+        private TrackBar _testPanTrackBar;
+        private Label _testPanValueLabel;
 
         private Label _availableLabel;
         private Label _characterLabel;
@@ -42,6 +57,7 @@ namespace GW2ProximityChat
         private Label _rawInstanceLabel;
         private Label _instanceKeyLabel;
         private Label _tickLabel;
+        private Checkbox _rangeIndicatorCheckbox;
 
         private Label _peersHeaderLabel;
         private readonly Dictionary<string, Label> _peerLabels = new Dictionary<string, Label>();
@@ -66,6 +82,7 @@ namespace GW2ProximityChat
         {
             _panelWidth = _contentWidth - PanelMargin;
             _innerWidth = _panelWidth - CategoryPadding * 2;
+            _rowControlWidth = _innerWidth - RowLabelWidth - RowGap;
 
             var scrollPanel = new FlowPanel
             {
@@ -88,6 +105,16 @@ namespace GW2ProximityChat
             _instanceKeyLabel   = CreateRow(mumbleCategory);
             _tickLabel          = CreateRow(mumbleCategory);
 
+            _rangeIndicatorCheckbox = new Checkbox
+            {
+                Text = "Show Range Indicator (draws Min/MaxRange rings around your character)",
+                Checked = _proximityService.ShowRangeIndicator,
+                Parent = mumbleCategory,
+            };
+            _rangeIndicatorCheckbox.CheckedChanged += (s, e) => _proximityService.ShowRangeIndicator = _rangeIndicatorCheckbox.Checked;
+
+            BuildAudioTestCategory(scrollPanel);
+
             _peersCategory = CreateCategory(scrollPanel, "Peers");
             _peersHeaderLabel = CreateRow(_peersCategory);
             _peersHeaderLabel.Text = "Peers:";
@@ -97,7 +124,104 @@ namespace GW2ProximityChat
 
         protected override void Unload()
         {
+            _proximityService.StopTestFile();
             _unregisterActive(this);
+        }
+
+        /// <summary>Loopback test: plays a local file through the same gain/pan/mixer path
+        /// real peer audio uses (see AudioService.PlayTestFile) so the falloff/pan curves
+        /// can be checked by ear without a second player. Distance slider drives gain through
+        /// the real GainCalculator.DistanceToGain curve -- not a raw gain slider -- so it's
+        /// actually exercising the tiered falloff, not just proving volume knobs work.</summary>
+        private void BuildAudioTestCategory(FlowPanel parent)
+        {
+            var category = CreateCategory(parent, "Audio Test (Loopback, no second player needed)");
+
+            var pathLabel = CreateLabel(category, _innerWidth);
+            pathLabel.Text = "File Path (wav/mp3/wma):";
+
+            _testFilePathTextBox = new TextBox { Width = _innerWidth, Parent = category };
+
+            _testFilePlayButton = new StandardButton { Text = "Play", Width = _innerWidth, Height = 30, Parent = category };
+            _testFilePlayButton.Click += OnTestFilePlayClicked;
+            _testFilePathTextBox.EnterPressed += OnTestFilePlayClicked;
+
+            _testFileStatusLabel = CreateLabel(category, _innerWidth);
+            _testFileStatusLabel.Text = "Stopped";
+            _testFileStatusLabel.TextColor = Color.LightGray;
+
+            var distanceRow = CreateHRow(category);
+            CreateRowLabel(distanceRow, "Simulated Distance:");
+            _testDistanceTrackBar = new TrackBar
+            {
+                MinValue = 0f,
+                MaxValue = TestDistanceSliderMax,
+                Value = 20f,
+                SmallStep = true,
+                Width = _rowControlWidth - 90,
+                Parent = distanceRow,
+            };
+            _testDistanceValueLabel = CreateLabel(distanceRow, 80);
+            _testDistanceTrackBar.ValueChanged += OnTestDistanceChanged;
+            OnTestDistanceChanged(_testDistanceTrackBar, EventArgs.Empty);
+
+            var panRow = CreateHRow(category);
+            CreateRowLabel(panRow, "Simulated Pan:");
+            _testPanTrackBar = new TrackBar
+            {
+                MinValue = -1f,
+                MaxValue = 1f,
+                Value = 0f,
+                SmallStep = true,
+                Width = _rowControlWidth - 90,
+                Parent = panRow,
+            };
+            _testPanValueLabel = CreateLabel(panRow, 80);
+            _testPanTrackBar.ValueChanged += OnTestPanChanged;
+            OnTestPanChanged(_testPanTrackBar, EventArgs.Empty);
+        }
+
+        private void OnTestFilePlayClicked(object sender, EventArgs e)
+        {
+            if (_proximityService.IsTestFilePlaying)
+            {
+                _proximityService.StopTestFile();
+                _testFilePlayButton.Text = "Play";
+                _testFileStatusLabel.Text = "Stopped";
+                _testFileStatusLabel.TextColor = Color.LightGray;
+                return;
+            }
+
+            try
+            {
+                _proximityService.PlayTestFile(_testFilePathTextBox.Text);
+                _proximityService.SetTestFileGain(GainCalculator.DistanceToGain(_testDistanceTrackBar.Value));
+                _proximityService.SetTestFilePan(_testPanTrackBar.Value);
+
+                _testFilePlayButton.Text = "Stop";
+                _testFileStatusLabel.Text = $"Playing: {System.IO.Path.GetFileName(_testFilePathTextBox.Text)} (looping)";
+                _testFileStatusLabel.TextColor = Color.White;
+            }
+            catch (Exception ex)
+            {
+                _testFileStatusLabel.Text = $"Failed to play: {ex.Message}";
+                _testFileStatusLabel.TextColor = new Color(255, 120, 120);
+            }
+        }
+
+        private void OnTestDistanceChanged(object sender, EventArgs e)
+        {
+            float distance = _testDistanceTrackBar.Value;
+            float gain = GainCalculator.DistanceToGain(distance);
+            _testDistanceValueLabel.Text = $"{distance:0}m ({gain * 100:0}%)";
+            _proximityService.SetTestFileGain(gain);
+        }
+
+        private void OnTestPanChanged(object sender, EventArgs e)
+        {
+            float pan = _testPanTrackBar.Value;
+            _testPanValueLabel.Text = $"{pan:0.00}";
+            _proximityService.SetTestFilePan(pan);
         }
 
         private FlowPanel CreateCategory(FlowPanel parent, string title)
@@ -125,6 +249,46 @@ namespace GW2ProximityChat
                 ShowShadow = true,
                 AutoSizeHeight = true,
                 Width = _innerWidth,
+                Parent = parent,
+            };
+        }
+
+        private FlowPanel CreateHRow(FlowPanel parent)
+        {
+            return new FlowPanel
+            {
+                FlowDirection = ControlFlowDirection.LeftToRight,
+                Width = _innerWidth,
+                HeightSizingMode = SizingMode.AutoSize,
+                ControlPadding = new Vector2(RowGap, 0),
+                Parent = parent,
+            };
+        }
+
+        private static Label CreateRowLabel(FlowPanel row, string text)
+        {
+            return new Label
+            {
+                Text = text,
+                TextColor = Color.White,
+                Font = GameService.Content.DefaultFont16,
+                ShowShadow = true,
+                AutoSizeHeight = true,
+                Width = RowLabelWidth,
+                Parent = row,
+            };
+        }
+
+        private static Label CreateLabel(FlowPanel parent, int width)
+        {
+            return new Label
+            {
+                Text = "-",
+                TextColor = Color.White,
+                Font = GameService.Content.DefaultFont16,
+                ShowShadow = true,
+                AutoSizeHeight = true,
+                Width = width,
                 Parent = parent,
             };
         }

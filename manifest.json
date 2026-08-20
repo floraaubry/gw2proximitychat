@@ -10,7 +10,7 @@
       "name": "floraaubry"
     }
   ],
-  "description": "Proximity-based voice chat: reads MumbleLink position/instance data and relays it to a server for distance-based audio mixing. Currently at the MumbleLink debug read-out stage.",
+  "description": "Proximity-based voice chat for Guild Wars 2.",
   "dependencies": {
     "bh.blishhud": ">=1.3.0"
   }
