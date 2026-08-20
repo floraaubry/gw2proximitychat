@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug with Blish HUD",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${env:USERPROFILE}\\Documents\\Blish.HUD\\Blish HUD.exe",
+      "args": [
+        "--debug",
+        "--module",
+        "${workspaceFolder}\\bin\\Debug\\net472\\GW2ProximityChat.bhm"
+      ],
+      "console": "externalTerminal",
+      "preLaunchTask": "build"
+    }
+  ]
+}

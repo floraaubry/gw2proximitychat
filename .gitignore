@@ -1,0 +1,6 @@
+bin/
+obj/
+*.bhm
+__pycache__/
+*.pyc
+.venv/
