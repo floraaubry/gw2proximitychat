@@ -40,8 +40,10 @@ namespace GW2ProximityChat
         public event Action<string, byte[]> AudioFrameReceived;
         public event Action Connected;
         public event Action<Exception> Disconnected;
-        public event Action<string> ServerHelloReceived;
+        public event Action<string, string> ServerHelloReceived; // (serverName, serverVersion)
         public event Action<string> AuthFailed;
+        public event Action<string, string> VersionMismatch;    // (serverVersion, clientVersion)
+        public event Action ServerFull;
 
         public bool IsConnected => _socket != null && _socket.State == WebSocketState.Open;
 
@@ -195,11 +197,18 @@ namespace GW2ProximityChat
                     break;
                 case "hello":
                     var hello = _serializer.Deserialize<HelloMessage>(json);
-                    if (hello != null) ServerHelloReceived?.Invoke(hello.ServerName);
+                    if (hello != null) ServerHelloReceived?.Invoke(hello.ServerName, hello.ServerVersion ?? "");
                     break;
                 case "auth_failed":
                     var authFailed = _serializer.Deserialize<AuthFailedMessage>(json);
                     AuthFailed?.Invoke(authFailed?.Reason ?? "Invalid password");
+                    break;
+                case "version_mismatch":
+                    var vm = _serializer.Deserialize<VersionMismatchMessage>(json);
+                    if (vm != null) VersionMismatch?.Invoke(vm.ServerVersion ?? "", vm.ClientVersion ?? "");
+                    break;
+                case "server_full":
+                    ServerFull?.Invoke();
                     break;
             }
         }

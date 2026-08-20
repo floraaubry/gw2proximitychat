@@ -146,16 +146,26 @@ namespace GW2ProximityChat
                     Logger.Warn(ex, "Lost connection to relay server {0}:{1}", ServerHost, ServerPort);
                 }
             };
-            _relayClient.ServerHelloReceived += name =>
+            _relayClient.ServerHelloReceived += (name, version) =>
             {
                 ServerName = name;
-                Logger.Info("Relay server identified itself as '{0}'", name);
+                Logger.Info("Relay server '{0}' version {1}", name, version);
             };
             _relayClient.AuthFailed += reason =>
             {
                 _authFailed = true;
                 ConnectionStatus = $"Auth failed: {reason}";
                 Logger.Warn("Relay server {0}:{1} rejected our password: {2}", ServerHost, ServerPort, reason);
+            };
+            _relayClient.VersionMismatch += (serverVer, clientVer) =>
+            {
+                ConnectionStatus = $"Version mismatch (server {serverVer}, client {clientVer})";
+                Logger.Warn("Incompatible server version {0} (client is {1})", serverVer, clientVer);
+            };
+            _relayClient.ServerFull += () =>
+            {
+                ConnectionStatus = "Server full";
+                Logger.Warn("Relay server {0}:{1} is full", ServerHost, ServerPort);
             };
 
             _audioService = new AudioService();
