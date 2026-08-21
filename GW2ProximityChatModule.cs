@@ -20,12 +20,16 @@ namespace GW2ProximityChat
         private ProximityChatSettings _settings;
         private ProximityService _proximityService;
         private ProximityChatWindow _window;
+        private UsersWindow _usersWindow;
         private CornerIcon _cornerIcon;
         private ContextMenuStrip _cornerMenu;
 
         private AsyncTexture2D _iconDisconnected;
         private AsyncTexture2D _iconConnecting;
         private AsyncTexture2D _iconConnected;
+        private AsyncTexture2D _volumeIcon;
+
+        private AsyncTexture2D _usersWindowBackground;
 
         private RangeIndicatorEntity _rangeIndicator;
 
@@ -47,7 +51,10 @@ namespace GW2ProximityChat
 
         protected override void Initialize() { }
 
-        protected override async Task LoadAsync() { }
+        protected override async Task LoadAsync()
+        {
+            _usersWindowBackground = await Gw2AssetLoader.LoadAsync(155985, minWidth: 200);
+        }
 
         protected override void OnModuleLoaded(EventArgs e)
         {
@@ -64,13 +71,15 @@ namespace GW2ProximityChat
             };
             _proximityService.StartAudio(_settings.MicrophoneDeviceIndex.Value, _settings.SpeakerDeviceIndex.Value);
 
-            _window = new ProximityChatWindow(_moduleParameters.ContentsManager, _settings, _proximityService, ApplyServerAddress);
-
-            _cornerMenu = new ContextMenuStrip(BuildCornerMenuItems);
-
             _iconDisconnected = _moduleParameters.ContentsManager.GetTexture("disconnected.png");
             _iconConnecting = _moduleParameters.ContentsManager.GetTexture("connecting.png");
             _iconConnected = _moduleParameters.ContentsManager.GetTexture("connected.png");
+            _volumeIcon = _moduleParameters.ContentsManager.GetTexture("volume.png");
+
+            _window = new ProximityChatWindow(_moduleParameters.ContentsManager, _settings, _proximityService, ApplyServerAddress);
+            _usersWindow = new UsersWindow(_usersWindowBackground, _volumeIcon, _proximityService);
+
+            _cornerMenu = new ContextMenuStrip(BuildCornerMenuItems);
 
             _cornerIcon = new CornerIcon
             {
@@ -129,6 +138,7 @@ namespace GW2ProximityChat
                 else _proximityService.ConnectNow();
             };
             items.Add(connectItem);
+            items.Add(new SeparatorMenuStripItem());
 
             var micItem = new ContextMenuStripItem(_proximityService.MicrophoneEnabled ? "Mute Microphone" : "Unmute Microphone");
             micItem.Click += (s, e) => _proximityService.MicrophoneEnabled = !_proximityService.MicrophoneEnabled;
@@ -137,6 +147,11 @@ namespace GW2ProximityChat
             var outputItem = new ContextMenuStripItem(_proximityService.OutputMuted ? "Unmute Output" : "Mute Output");
             outputItem.Click += (s, e) => _proximityService.OutputMuted = !_proximityService.OutputMuted;
             items.Add(outputItem);
+            items.Add(new SeparatorMenuStripItem());
+
+            var usersItem = new ContextMenuStripItem("Open Users Window");
+            usersItem.Click += (s, e) => _usersWindow.ToggleWindow();
+            items.Add(usersItem);
 
             var settingsItem = new ContextMenuStripItem("Open Settings Window");
             settingsItem.Click += (s, e) => _window.ToggleWindow();
@@ -202,6 +217,7 @@ namespace GW2ProximityChat
             _cornerIcon?.Dispose();
             _cornerMenu?.Dispose();
             _window?.Dispose();
+            _usersWindow?.Dispose();
             _proximityService?.Dispose();
         }
     }

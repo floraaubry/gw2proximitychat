@@ -58,6 +58,7 @@ namespace GW2ProximityChat
         private Label _instanceKeyLabel;
         private Label _tickLabel;
         private Checkbox _rangeIndicatorCheckbox;
+        private Checkbox _fakeUsersCheckbox;
 
         private Label _peersHeaderLabel;
         private readonly Dictionary<string, Label> _peerLabels = new Dictionary<string, Label>();
@@ -112,6 +113,14 @@ namespace GW2ProximityChat
                 Parent = mumbleCategory,
             };
             _rangeIndicatorCheckbox.CheckedChanged += (s, e) => _proximityService.ShowRangeIndicator = _rangeIndicatorCheckbox.Checked;
+
+            _fakeUsersCheckbox = new Checkbox
+            {
+                Text = "Show 20 Fake Peers (adds fake rows to the Peers list below and the Users window, for checking layout without a second player)",
+                Checked = _proximityService.ShowFakeDebugPeers,
+                Parent = mumbleCategory,
+            };
+            _fakeUsersCheckbox.CheckedChanged += (s, e) => _proximityService.ShowFakeDebugPeers = _fakeUsersCheckbox.Checked;
 
             BuildAudioTestCategory(scrollPanel);
 

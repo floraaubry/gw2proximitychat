@@ -114,6 +114,36 @@ namespace GW2ProximityChat
         /// calibrating the proximity falloff in-game.</summary>
         public bool ShowRangeIndicator { get; set; }
 
+        /// <summary>Debug-tab toggle -- appends <see cref="FakeDebugPeers"/> to every
+        /// <see cref="GetPeersSnapshot"/> call so the Users window/Debug peers list can be
+        /// checked visually (layout, scrolling, row controls) without a second real player.
+        /// Kept out of the real <see cref="_peers"/> list so it never touches the relay/audio
+        /// pipeline -- it's purely additive at the UI-facing snapshot.</summary>
+        public bool ShowFakeDebugPeers { get; set; }
+
+        private const int FakeDebugPeerCount = 20;
+
+        private static readonly LocalPeerState[] FakeDebugPeers = BuildFakeDebugPeers();
+
+        private static LocalPeerState[] BuildFakeDebugPeers()
+        {
+            var peers = new LocalPeerState[FakeDebugPeerCount];
+            for (int i = 0; i < FakeDebugPeerCount; i++)
+            {
+                float t = i / (float)(FakeDebugPeerCount - 1); // 0..1 across the whole set
+                peers[i] = new LocalPeerState
+                {
+                    PlayerId = $"debug-fake-{i + 1}",
+                    Name = $"Fake Peer {i + 1}",
+                    Distance = 2f + t * 38f,
+                    Gain = 1f - t * 0.9f,
+                    Pan = -1f + t * 2f,
+                };
+            }
+
+            return peers;
+        }
+
         /// <summary>Debug-tab loopback test -- plays a local audio file through the same
         /// gain/pan path real peers use, so falloff/pan can be checked by ear solo.</summary>
         public bool IsTestFilePlaying => _audioService.IsTestFilePlaying;
@@ -224,9 +254,19 @@ namespace GW2ProximityChat
         {
             lock (_peersLock)
             {
-                return new List<LocalPeerState>(_peers);
+                var snapshot = new List<LocalPeerState>(_peers);
+                if (ShowFakeDebugPeers) snapshot.AddRange(FakeDebugPeers);
+                return snapshot;
             }
         }
+
+        /// <summary>User-set per-peer volume (Users window) -- independent of the distance-based
+        /// gain RecomputeGains applies every tick, the two are combined in AudioService.</summary>
+        public float GetPeerVolume(string peerId) => _audioService.GetPeerVolume(peerId);
+        public void SetPeerVolume(string peerId, float volume) => _audioService.SetPeerVolume(peerId, volume);
+        public bool IsPeerMuted(string peerId) => _audioService.IsPeerMuted(peerId);
+        public bool IsPeerTalking(string peerId) => _audioService.IsPeerTalking(peerId);
+        public void SetPeerMuted(string peerId, bool muted) => _audioService.SetPeerMuted(peerId, muted);
 
         public void Tick(GameTime gameTime)
         {

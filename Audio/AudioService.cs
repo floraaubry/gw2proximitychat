@@ -35,6 +35,7 @@ namespace GW2ProximityChat
         {
             public PeerAudioTrack Track;
             public MonoToStereoSampleProvider Stereo;
+            public float DistanceGain = 1f;
         }
 
         /// <summary>Restarts the wrapped <see cref="AudioFileReader"/> from the beginning
@@ -341,9 +342,25 @@ namespace GW2ProximityChat
                     _peerTracks[peerId] = entry;
                     _mixer.AddMixerInput(stereo);
                 }
+
+                _lastAudioReceived[peerId] = DateTime.UtcNow;
             }
 
             entry.Track.EnqueueOpusPacket(opusPayload);
+        }
+
+        // Frames arrive up to ~50Hz while a peer is transmitting (PushToTalk held / above the
+        // Voice Activity gate) with nothing sent in between -- a timeout comfortably longer than
+        // the gap between frames but short enough to decay quickly once they stop talking.
+        private static readonly TimeSpan TalkingTimeout = TimeSpan.FromMilliseconds(400);
+        private readonly Dictionary<string, DateTime> _lastAudioReceived = new Dictionary<string, DateTime>();
+
+        public bool IsPeerTalking(string peerId)
+        {
+            lock (_peerTracks)
+            {
+                return _lastAudioReceived.TryGetValue(peerId, out var last) && DateTime.UtcNow - last < TalkingTimeout;
+            }
         }
 
         public void SetPeerGain(string peerId, float gain)
@@ -352,9 +369,60 @@ namespace GW2ProximityChat
             {
                 if (_peerTracks.TryGetValue(peerId, out var entry))
                 {
-                    entry.Track.Gain = gain;
+                    entry.DistanceGain = gain;
+                    ApplyEffectiveGain(peerId, entry);
                 }
             }
+        }
+
+        // User-set per-peer volume/mute (Users window), independent of the distance-based
+        // gain RecomputeGains drives through SetPeerGain -- kept in their own dictionaries
+        // rather than only on PeerMixEntry so a value set before the peer's first audio
+        // packet (and thus before its PeerMixEntry exists) isn't lost.
+        private readonly Dictionary<string, float> _peerVolumes = new Dictionary<string, float>();
+        private readonly HashSet<string> _mutedPeers = new HashSet<string>();
+
+        public void SetPeerVolume(string peerId, float volume)
+        {
+            lock (_peerTracks)
+            {
+                _peerVolumes[peerId] = volume;
+                if (_peerTracks.TryGetValue(peerId, out var entry)) ApplyEffectiveGain(peerId, entry);
+            }
+        }
+
+        public float GetPeerVolume(string peerId)
+        {
+            lock (_peerTracks)
+            {
+                return _peerVolumes.TryGetValue(peerId, out var v) ? v : 1f;
+            }
+        }
+
+        public void SetPeerMuted(string peerId, bool muted)
+        {
+            lock (_peerTracks)
+            {
+                if (muted) _mutedPeers.Add(peerId);
+                else _mutedPeers.Remove(peerId);
+
+                if (_peerTracks.TryGetValue(peerId, out var entry)) ApplyEffectiveGain(peerId, entry);
+            }
+        }
+
+        public bool IsPeerMuted(string peerId)
+        {
+            lock (_peerTracks)
+            {
+                return _mutedPeers.Contains(peerId);
+            }
+        }
+
+        private void ApplyEffectiveGain(string peerId, PeerMixEntry entry)
+        {
+            bool muted = _mutedPeers.Contains(peerId);
+            float volume = _peerVolumes.TryGetValue(peerId, out var v) ? v : 1f;
+            entry.Track.Gain = muted ? 0f : entry.DistanceGain * volume;
         }
 
         /// <summary>-1 (full left) .. 0 (center) .. 1 (full right), same convention as
@@ -476,6 +544,9 @@ namespace GW2ProximityChat
                 {
                     _mixer.RemoveMixerInput(_peerTracks[id].Stereo);
                     _peerTracks.Remove(id);
+                    _peerVolumes.Remove(id);
+                    _mutedPeers.Remove(id);
+                    _lastAudioReceived.Remove(id);
                 }
             }
         }

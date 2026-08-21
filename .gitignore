@@ -4,3 +4,5 @@ obj/
 __pycache__/
 *.pyc
 .venv/
+GW2ProximityChat.Server/.qtcreator/
+GW2ProximityChat.Server/build/
